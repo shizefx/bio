@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHIZE OS | 8-Bit Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1c2c;
+            --jrpg-blue: #0000a3;
+            --jrpg-border: #ffffff;
+            --text-color: #ffffff;
+            --highlight: #f4f4f4;
+            --shadow: rgba(0, 0, 0, 0.8);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            font-family: 'Press Start 2P', monospace;
+            background-color: var(--bg-color);
+            /* Retro grid pattern */
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 32px 32px;
+            overflow: hidden;
+            user-select: none;
+            color: var(--text-color);
+        }
+
+        /* CRT Scanline Effect */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .pixelated {
+            image-rendering: pixelated;
+        }
+
+        /* Boot Screen */
+        #boot-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .blink-text {
+            animation: blinker 1s linear infinite;
+        }
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+        /* Traverse Universe Overlay */
+        #traverse-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 20000; /* Above absolutely everything */
+            display: none;
+            background-color: transparent;
+            transition: background-color 1.5s ease-in-out;
+        }
+        #traverse-overlay.show-void { background-color: #000; }
+        #traverse-overlay.show-white { background-color: #fff; }
+        
+        #traverse-canvas {
+            width: 100%; height: 100%;
+            display: block;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        #traverse-overlay.show-void #traverse-canvas { opacity: 1; }
+        #traverse-overlay.show-white #traverse-canvas { opacity: 0; }
+
+        /* Tutorial Animations */
+        @keyframes float-sprite {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float {
+            animation: float-sprite 2s ease-in-out infinite;
+        }
+
+        /* Desktop Icons */
+        .desktop-icon {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 80px;
+            padding: 8px;
+            cursor: pointer;
+            text-align: center;
+            z-index: 5;
+            transition: transform 0.1s;
+        }
+
+        .desktop-icon:active {
+            transform: scale(0.95);
+        }
+
+        .desktop-icon canvas {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 8px;
+            filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.8));
+        }
+
+        .desktop-icon span {
+            font-size: 8px;
+            line-height: 1.5;
+            text-shadow: 2px 2px 0px #000;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px;
+            border-radius: 2px;
+        }
+
+        .desktop-icon.selected span {
+            background-color: #d90000;
+            border: 1px dotted #fff;
+        }
+
+        /* JRPG Style Windows */
+        .pixel-window {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--jrpg-blue);
+            /* Pixelated border effect using box-shadow */
+            box-shadow: 
+                inset 4px 4px 0px rgba(255, 255, 255, 0.2),
+                inset -4px -4px 0px rgba(0, 0, 0, 0.5),
+                0 0 0 4px var(--jrpg-border),
+                6px 6px 0px var(--shadow);
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            min-width: 300px;
+        }
+
+        .window-header {
+            background: transparent;
+            padding: 12px 12px 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: grab;
+            border-bottom: 4px solid var(--jrpg-border);
+        }
+        
+        .window-header:active {
+            cursor: grabbing;
+        }
+
+        /* JRPG Window Drawing Animation */
+        @keyframes jrpg-window-draw {
+            0% { clip-path: inset(50% 50% 50% 50%); filter: brightness(2); }
+            20% { clip-path: inset(48% 25% 48% 25%); filter: brightness(2); }
+            40% { clip-path: inset(48% 0 48% 0); filter: brightness(2); }
+            60% { clip-path: inset(25% 0 25% 0); filter: brightness(1.5); }
+            80% { clip-path: inset(10% 0 10% 0); filter: brightness(1); }
+            100% { clip-path: inset(0 0 0 0); filter: brightness(1); }
+        }
+        
+        .window-open-anim {
+            animation: jrpg-window-draw 0.3s steps(1, end) forwards;
+        }
+
+        .window-title {
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 2px 2px 0px #000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-close {
+            width: 20px;
+            height: 20px;
+            background: #d90000;
+            border: 2px solid #fff;
+            color: #fff;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #000;
+        }
+        .btn-close:active {
+            box-shadow: inset 2px 2px 0px rgba(0,0,0,0.5);
+            transform: translate(2px, 2px);
+        }
+
+        .window-content {
+            padding: 16px;
+            font-size: 10px;
+            line-height: 1.8;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Custom Scrollbar for retro feel */
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: #000055; border-left: 2px solid #fff; }
+        ::-webkit-scrollbar-thumb { background: #fff; border: 2px solid #000055; }
+
+        /* HUD Taskbar */
+        .hud {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 48px;
+            background: #000;
+            border-top: 4px solid #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 100;
+            font-size: 10px;
+        }
+
+        .hud-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .hp-bar {
+            width: 80px;
+            height: 12px;
+            background: #555;
+            border: 2px solid #fff;
+            position: relative;
+        }
+        .hp-fill {
+            position: absolute;
+            top: 0; left: 0; height: 100%;
+            background: #00d900;
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        .mp-bar, .exp-bar {
+            width: 80px;
+            height: 12px;
+            background: #555;
+            border: 2px solid #fff;
+            position: relative;
+        }
+        .mp-fill {
+            position: absolute;
+            top: 0; left: 0; height: 100%;
+            background: #0088ff;
+            width: 100%;
+            transition: width 0.3s;
+        }
+        .exp-fill {
+            position: absolute;
+            top: 0; left: 0; height: 100%;
+            background: #ffcc00;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Enemy Sprite Animation */
+        .slime-sprite {
+            width: 64px;
+            height: 64px;
+            background-color: #00d900;
+            clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%);
+            position: relative;
+            cursor: crosshair;
+            transition: transform 0.1s, width 0.3s, height 0.3s, background-color 0.3s, clip-path 0.3s;
+            margin: 0 auto;
+        }
+        .slime-sprite:active {
+            transform: scale(0.9) translateY(10px);
+            filter: brightness(1.5);
+        }
+        .slime-eyes {
+            position: absolute;
+            top: 30%;
+            left: 20%;
+            width: 60%;
+            display: flex;
+            justify-content: space-between;
+        }
+        .slime-eye {
+            width: 8px; height: 8px; background: #000;
+        }
+        
+        /* Retro Button */
+        .retro-btn {
+            background: #555;
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: 10px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #000;
+            text-transform: uppercase;
+        }
+        .retro-btn:active {
+            background: #333;
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body class="crt">
+
+    <!-- Traverse Universe Overlay -->
+    <div id="traverse-overlay">
+        <canvas id="traverse-canvas"></canvas>
+    </div>
+
+    <!-- Boot Sequence -->
+    <div id="boot-screen">
+        <h1 class="text-4xl text-red-500 mb-8 tracking-widest" style="text-shadow: 4px 4px 0 #000;">SHIZE OS</h1>
+        <div class="text-xs text-white mb-16">VERSION 1.0 - 8-BIT SYS</div>
+        
+        <div id="insert-coin" class="blink-text text-yellow-400 text-xl cursor-pointer hover:text-white" onclick="bootSystem()">
+            > INSERT COIN TO START <
+        </div>
+        
+        <div id="loading-bar" class="hidden w-64 h-6 border-4 border-white p-1 mt-8">
+            <div id="loading-fill" class="h-full bg-blue-500 w-0 transition-all duration-300"></div>
+        </div>
+
+        <!-- Retro Save Prompt Menu -->
+        <div id="save-prompt" class="hidden flex-col items-center mt-8 p-6 border-4 border-white bg-[#0000a3] shadow-[8px_8px_0_rgba(0,0,0,0.8)]">
+            <div class="text-white text-[10px] mb-6 blink-text">MEMORY CARD DATA DETECTED!</div>
+            <div class="flex gap-4 w-full justify-center">
+                <button class="retro-btn !text-green-400" onclick="continueGame()">CONTINUE</button>
+                <button class="retro-btn !text-red-400" onclick="newGame()">NEW GAME</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial Overlay -->
+    <div id="tutorial-overlay" class="fixed inset-0 z-[9990] bg-black/70 hidden flex-col items-center justify-end pb-24 px-4">
+        <div class="pixel-window relative !top-auto !left-auto !transform-none w-full max-w-2xl" id="tutorial-box">
+            <!-- bunii Sprite Canvas -->
+            <div class="absolute -top-32 left-8 animate-float">
+                <canvas id="canvas-bunii" width="16" height="16" class="w-32 h-32 pixelated drop-shadow-[4px_4px_0_rgba(0,0,0,1)]"></canvas>
+            </div>
+            
+            <div class="window-header !bg-[#0000a3] !cursor-default">
+                <div class="window-title text-yellow-400">SYSTEM GUIDE: BUNII</div>
+            </div>
+            <div class="window-content min-h-[120px] text-sm leading-loose relative cursor-pointer hover:bg-white/5 transition-colors" onclick="advanceTutorial()">
+                <span id="tutorial-text"></span><span class="animate-pulse">_</span>
+                <div class="absolute bottom-4 right-4 text-[10px] text-yellow-400 blink-text">CLICK TO CONTINUE ▼</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Icons -->
+    <div class="desktop-icon top-8 left-8" id="icon-stats" onclick="openWindow('window-stats')">
+        <canvas id="canvas-hero" width="8" height="8" class="pixelated"></canvas>
+        <span>HERO<br>STATS</span>
+    </div>
+
+    <div class="desktop-icon top-32 left-8" id="icon-inventory" onclick="openWindow('window-inventory')">
+        <canvas id="canvas-chest" width="8" height="8" class="pixelated"></canvas>
+        <span>INVENTORY</span>
+    </div>
+
+    <div class="desktop-icon top-56 left-8" id="icon-traverse" onclick="startTraverse()">
+        <canvas id="canvas-traverse" width="8" height="8" class="pixelated"></canvas>
+        <span class="text-blue-300">TRAVERSE<br>UNIVERSE</span>
+    </div>
+
+    <div class="desktop-icon top-8 right-8" id="icon-game" onclick="openWindow('window-game')">
+        <canvas id="canvas-sword" width="8" height="8" class="pixelated"></canvas>
+        <span>BATTLE</span>
+    </div>
+
+    <div class="desktop-icon top-32 right-8" id="icon-music" onclick="openWindow('window-music')">
+        <canvas id="canvas-music" width="8" height="8" class="pixelated"></canvas>
+        <span>JUKEBOX</span>
+    </div>
+
+    <div class="desktop-icon top-56 right-8" id="icon-shop" onclick="openWindow('window-shop')">
+        <canvas id="canvas-shop" width="8" height="8" class="pixelated"></canvas>
+        <span>GEAR<br>SHOP</span>
+    </div>
+
+    <!-- Window: Hero Stats -->
+    <div class="pixel-window" id="window-stats" style="display: none; top: 40%; left: 30%; width: 350px;">
+        <div class="window-header">
+            <div class="window-title">
+                <canvas id="canvas-hero-mini" width="8" height="8" class="w-4 h-4 pixelated"></canvas>
+                STATUS
+            </div>
+            <div class="btn-close" onclick="closeWindow('window-stats')">X</div>
+        </div>
+        <div class="window-content space-y-4">
+            <div class="flex items-start gap-4 border-b-2 border-dashed border-gray-400 pb-4">
+                <div class="w-16 h-16 bg-black border-2 border-white flex items-center justify-center p-1">
+                    <canvas id="canvas-hero-portrait" width="8" height="8" class="w-full h-full pixelated"></canvas>
+                </div>
+                <div>
+                    <div class="text-yellow-400 mb-2 text-sm">PLAYER 1</div>
+                    <div>CLASS: VIDEO EDITOR</div>
+                    <div>LEVEL: <span id="stat-lvl">266</span></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-gray-300">
+                <div>STR: 100</div>
+                <div>INT: 100</div>
+                <div>DEF: 100</div>
+                <div>DMG: <span id="stat-dmg">100</span></div>
+            </div>
+            <div class="bg-black p-3 border-2 border-gray-500 text-gray-400 mt-4 leading-relaxed">
+                "i edit, i guess?"
+            </div>
+        </div>
+    </div>
+
+    <!-- Window: Inventory -->
+    <div class="pixel-window" id="window-inventory" style="display: none; top: 50%; left: 50%; width: 400px;">
+        <div class="window-header">
+            <div class="window-title">
+                <canvas id="canvas-chest-mini" width="8" height="8" class="w-4 h-4 pixelated"></canvas>
+                INVENTORY
+            </div>
+            <div class="btn-close" onclick="closeWindow('window-inventory')">X</div>
+        </div>
+        <div class="window-content">
+            <p class="text-yellow-400 mb-4 border-b-2 border-white pb-2">CHOOSE AN ITEM:</p>
+            <div class="grid grid-cols-1 gap-2">
+                <a href="https://youtube.com/@shizevfx" target="_blank" class="flex items-center gap-4 p-2 hover:bg-white hover:text-[#0000a3] cursor-pointer border-2 border-transparent transition-colors group">
+                    <div class="w-8 h-8 bg-black flex items-center justify-center group-hover:border-2 border-[#0000a3]">
+                        <span class="text-red-500 text-xs font-bold">YT</span>
+                    </div>
+                    <div class="flex-1">YOUTUBE SCROLL</div>
+                    <div class="text-xs">x1</div>
+                </a>
+                <a href="https://tiktok.com/@shize.aep" target="_blank" class="flex items-center gap-4 p-2 hover:bg-white hover:text-[#0000a3] cursor-pointer border-2 border-transparent transition-colors group">
+                    <div class="w-8 h-8 bg-black flex items-center justify-center group-hover:border-2 border-[#0000a3]">
+                        <span class="text-white text-xs font-bold" style="text-shadow: 1px 1px 0 #0ff, -1px -1px 0 #f00;">TT</span>
+                    </div>
+                    <div class="flex-1">TIKTOK POTION</div>
+                    <div class="text-xs">x1</div>
+                </a>
+                <div class="flex items-center gap-4 p-2 hover:bg-white hover:text-[#0000a3] cursor-default border-2 border-transparent transition-colors group">
+                    <div class="w-8 h-8 bg-black flex items-center justify-center group-hover:border-2 border-[#0000a3]">
+                        <span class="text-indigo-400 text-xs font-bold">DC</span>
+                    </div>
+                    <div class="flex-1 flex flex-col">
+                        <span>DISCORD RELIC</span>
+                        <span class="text-[8px] mt-1" id="discord-status">@shizefx: <span class="text-gray-400">CONNECTING...</span></span>
+                    </div>
+                    <div class="text-xs">x1</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Window: Battle / Mini-Game -->
+    <div class="pixel-window" id="window-game" style="display: none; top: 30%; left: 60%; width: 320px;">
+        <div class="window-header">
+            <div class="window-title">
+                <canvas id="canvas-sword-mini" width="8" height="8" class="w-4 h-4 pixelated"></canvas>
+                BATTLE ENCOUNTER
+            </div>
+            <div class="btn-close" onclick="closeWindow('window-game')">X</div>
+        </div>
+        <div class="window-content text-center">
+            <div class="flex justify-between items-center mb-2">
+                <button class="retro-btn text-[8px] px-2 py-1" onclick="prevEnemy()">&lt; PREV</button>
+                <span class="text-yellow-400 text-[10px]" id="enemy-name">A WILD SLIME APPEARS!</span>
+                <button class="retro-btn text-[8px] px-2 py-1 text-red-400 font-bold" onclick="nextEnemy()">NEXT &gt;</button>
+            </div>
+            <div id="battle-arena" class="bg-black border-2 border-gray-500 p-4 mb-2 h-40 flex flex-col items-center justify-center relative overflow-hidden">
+                <div id="damage-text" class="absolute top-2 right-4 text-red-500 font-bold opacity-0 transition-opacity duration-200">-20 HP</div>
+                <div id="enemy-sprite" class="slime-sprite" onclick="hitEnemy()">
+                    <div class="slime-eyes"><div class="slime-eye"></div><div class="slime-eye"></div></div>
+                </div>
+            </div>
+            <div class="text-xs text-gray-300 mb-4" id="enemy-desc">Click to attack and earn EXP.</div>
+            
+            <div class="flex justify-between items-center text-xs">
+                <span>ENEMY HP:</span>
+                <div class="w-32 h-4 bg-gray-800 border border-white relative">
+                    <div id="enemy-hp-fill" class="h-full bg-red-600 w-full transition-all"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Window: Jukebox / Music Player -->
+    <div class="pixel-window" id="window-music" style="display: none; top: 50%; left: 50%; width: 280px;">
+        <div class="window-header">
+            <div class="window-title">
+                <canvas id="canvas-music-mini" width="8" height="8" class="w-4 h-4 pixelated"></canvas>
+                JUKEBOX
+            </div>
+            <div class="btn-close" onclick="closeWindow('window-music')">X</div>
+        </div>
+        <div class="window-content">
+            <div class="bg-black border-2 border-gray-500 p-3 mb-3 text-center relative">
+                <div id="track-title" class="text-green-400 text-[10px] truncate uppercase tracking-widest">NO DISC</div>
+                <div class="text-[8px] text-gray-400 mt-2"><span id="time-current">0:00</span> / <span id="time-total">0:00</span></div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="w-full h-3 bg-gray-800 border border-white mb-2 relative cursor-pointer" id="progress-container" onclick="seekAudio(event)">
+                <div id="progress-fill" class="h-full bg-blue-500 w-0 pointer-events-none transition-all duration-100"></div>
+            </div>
+
+            <!-- Volume Control -->
+            <div class="flex items-center justify-between text-[8px] mb-3 text-white">
+                <span>VOL</span>
+                <div class="w-3/5 h-3 bg-gray-800 border border-white relative cursor-pointer mx-2" id="volume-container" onclick="setVolume(event)">
+                    <div id="volume-fill" class="h-full bg-green-500 w-full pointer-events-none transition-all duration-100"></div>
+                </div>
+                <span id="volume-text" class="w-8 text-right">100%</span>
+            </div>
+            
+            <!-- Controls -->
+            <div class="flex justify-between gap-2 mb-3">
+                <button class="retro-btn flex-1 text-xs px-1" onclick="prevTrack()">|&lt;&lt;</button>
+                <button class="retro-btn flex-1 text-xs px-1" id="btn-play-pause" onclick="togglePlay()">PLAY</button>
+                <button class="retro-btn flex-1 text-xs px-1" onclick="nextTrack()">&gt;&gt;|</button>
+            </div>
+            
+            <!-- Playlist -->
+            <div class="relative">
+                <button class="retro-btn w-full flex justify-between items-center text-[10px]" onclick="togglePlaylist()">
+                    <span>PLAYLIST</span><span id="playlist-arrow">▼</span>
+                </button>
+                <div id="playlist-menu" class="hidden absolute top-full left-0 w-full bg-black border-2 border-white mt-1 max-h-32 overflow-y-auto z-50">
+                    <ul id="playlist-list" class="text-[8px] text-white">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Window: Gear Shop -->
+    <div class="pixel-window" id="window-shop" style="display: none; top: 45%; left: 20%; width: 340px;">
+        <div class="window-header">
+            <div class="window-title">
+                <canvas id="canvas-shop-mini" width="8" height="8" class="w-4 h-4 pixelated"></canvas>
+                MUSIC GEAR SHOP
+            </div>
+            <div class="btn-close" onclick="closeWindow('window-shop')">X</div>
+        </div>
+        <div class="window-content">
+            <p class="text-yellow-400 mb-2 border-b-2 border-white pb-2 text-[10px]">UPGRADE YOUR SOUND (DMG):</p>
+            <div class="grid grid-cols-1 gap-2">
+                <div class="flex items-center gap-2 p-2 bg-black border-2 border-gray-600">
+                    <div class="w-8 h-8 flex items-center justify-center bg-gray-800 border border-gray-500 text-lg">📢</div>
+                    <div class="flex-1 text-[8px]">
+                        <div class="text-white">LOUDSPEAKER</div>
+                        <div class="text-green-400">+30 DMG</div>
+                    </div>
+                    <button class="retro-btn text-[8px] px-2 py-1" onclick="buyWeapon('LOUDSPEAKER', 50, 30)">50G</button>
+                </div>
+                <div class="flex items-center gap-2 p-2 bg-black border-2 border-gray-600">
+                    <div class="w-8 h-8 flex items-center justify-center bg-gray-800 border border-gray-500 text-lg">🎸</div>
+                    <div class="flex-1 text-[8px]">
+                        <div class="text-white">ELECTRIC GUITAR</div>
+                        <div class="text-green-400">+100 DMG</div>
+                    </div>
+                    <button class="retro-btn text-[8px] px-2 py-1" onclick="buyWeapon('ELECTRIC GUITAR', 200, 100)">200G</button>
+                </div>
+                <div class="flex items-center gap-2 p-2 bg-black border-2 border-gray-600">
+                    <div class="w-8 h-8 flex items-center justify-center bg-gray-800 border border-gray-500 text-lg">🎹</div>
+                    <div class="flex-1 text-[8px]">
+                        <div class="text-white">SYNTH-AXE</div>
+                        <div class="text-green-400">+400 DMG</div>
+                    </div>
+                    <button class="retro-btn text-[8px] px-2 py-1" onclick="buyWeapon('SYNTH-AXE', 1000, 400)">1000G</button>
+                </div>
+            </div>
+            <div class="mt-3 text-[8px] text-gray-400 italic text-center" id="shop-message">Welcome to the shop!</div>
+        </div>
+    </div>
+
+    <!-- Audio Element -->
+    <audio id="audio-player"></audio>
+
+    <!-- Bottom HUD -->
+    <div class="hud">
+        <div class="hud-section">
+            <span class="text-yellow-400">LVL <span id="hud-lvl">266</span></span>
+            <div class="flex items-center gap-2">
+                <span>HP</span>
+                <div class="hp-bar"><div class="hp-fill"></div></div>
+            </div>
+            <div class="flex items-center gap-2 hidden md:flex">
+                <span>MP</span>
+                <div class="mp-bar"><div class="mp-fill"></div></div>
+            </div>
+        </div>
+        <div class="hud-section hidden sm:flex">
+            <div class="flex items-center gap-2">
+                <span>EXP</span>
+                <div class="exp-bar"><div id="hud-exp-fill" class="exp-fill"></div></div>
+            </div>
+            <span>GOLD: <span id="hud-gold" class="text-yellow-400">0</span></span>
+        </div>
+        <div class="hud-section">
+            <span id="hud-clock" class="text-blue-300">00:00</span>
+        </div>
+    </div>
+
+    <script>
+        /* --- SAVE SYSTEM (FIREBASE CLOUD + INDEXEDDB WORKAROUND) --- */
+        let db, auth, currentUser, appId;
+        let isFirebaseActive = false;
+        let saveCheckPromise = null;
+
+        async function initSaveSystem() {
+            try {
+                // Try Firebase Cloud Save First
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                    const { getAuth, signInAnonymously, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                    const { getFirestore, doc, getDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    currentUser = auth.currentUser;
+
+                    if (currentUser) {
+                        isFirebaseActive = true;
+                        const saveRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'saveData', 'slot1');
+                        const saveDoc = await getDoc(saveRef);
+                        if (saveDoc.exists()) {
+                            window.savedGameData = saveDoc.data();
+                            return true;
+                        }
+                        return false;
+                    }
+                }
+            } catch (e) {
+                console.warn("Firebase config not available or failed. Using IndexedDB workaround.");
+            }
+
+            // WORKAROUND: Fallback to local IndexedDB if Cloud Save is unavailable
+            return new Promise((resolve) => {
+                const request = indexedDB.open("ShizeOS_SaveData", 1);
+                request.onupgradeneeded = (e) => {
+                    const idb = e.target.result;
+                    if (!idb.objectStoreNames.contains("saves")) {
+                        idb.createObjectStore("saves", { keyPath: "slot" });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    window.localDB = e.target.result;
+                    const transaction = window.localDB.transaction(["saves"], "readonly");
+                    const store = transaction.objectStore("saves");
+                    const getReq = store.get("slot1");
+                    getReq.onsuccess = (event) => {
+                        if (event.target.result) {
+                            window.savedGameData = event.target.result.data;
+                            resolve(true);
+                        } else {
+                            resolve(false);
+                        }
+                    };
+                    getReq.onerror = () => resolve(false);
+                };
+                request.onerror = () => resolve(false);
+            });
+        }
+
+        // Start checking for save data immediately in the background
+        saveCheckPromise = initSaveSystem();
+
+        async function saveGame() {
+            const saveData = {
+                exp: exp,
+                maxExp: maxExp,
+                lvl: lvl,
+                gold: gold,
+                clickDamage: clickDamage,
+                currentHp: currentHp,
+                currentEnemyIndex: currentEnemyIndex
+            };
+
+            // Try Cloud Save
+            if (isFirebaseActive && currentUser && db) {
+                try {
+                    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                    const saveRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'saveData', 'slot1');
+                    await setDoc(saveRef, saveData);
+                    return;
+                } catch (e) {
+                    console.error("Cloud save failed, falling back to local.", e);
+                }
+            }
+
+            // Fallback to IndexedDB Workaround
+            if (window.localDB) {
+                try {
+                    const transaction = window.localDB.transaction(["saves"], "readwrite");
+                    const store = transaction.objectStore("saves");
+                    store.put({ slot: "slot1", data: saveData });
+                } catch (e) {
+                    console.error("IndexedDB save failed.", e);
+                }
+            }
+        }
+
+        /* --- AUDIO SYNTHESIZER --- */
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playTypingSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'square';
+            // Randomize pitch slightly (between 400Hz and 600Hz)
+            osc.frequency.setValueAtTime(400 + Math.random() * 200, audioCtx.currentTime);
+            
+            // Envelope to make it short and plucky
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime); 
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function playTraverseSound() {
+            if (!audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(50, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 3);
+            
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 1);
+            gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 2.5); 
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 4);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 4);
+        }
+
+        /* --- OS STATE --- */
+        let zIndexCounter = 30;
+        let clockInterval = null;
+        
+        /* --- MINI GAME STATE --- */
+        let exp = 0;
+        let maxExp = 53200; // Calculated based on Level 266
+        let lvl = 266;
+        let gold = 0;
+        let clickDamage = 100;
+
+        const enemyDatabase = [
+            { name: "WILD SLIME", maxHp: 100, exp: 50, gold: 5, color: '#00d900', size: '64px', clip: 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)', desc: "Click to attack and earn EXP." },
+            { name: "GLITCH BAT", maxHp: 300, exp: 120, gold: 15, color: '#9d00ff', size: '70px', clip: 'polygon(0% 20%, 40% 40%, 50% 0%, 60% 40%, 100% 20%, 80% 80%, 50% 100%, 20% 80%)', desc: "A faster, tougher enemy." },
+            { name: "BASS GOLEM", maxHp: 800, exp: 300, gold: 50, color: '#555577', size: '80px', clip: 'polygon(10% 0, 90% 0, 100% 20%, 100% 100%, 0 100%, 0 20%)', desc: "Heavy bass armor. Hard to crack." },
+            { name: "RAID: NEON DRAGON", maxHp: 5000, exp: 2000, gold: 500, color: '#ff0055', size: '100px', clip: 'polygon(50% 0%, 100% 25%, 80% 100%, 50% 80%, 20% 100%, 0% 25%)', desc: "RAID BOSS. Bring good gear!" }
+        ];
+        let currentEnemyIndex = 0;
+        let currentHp = enemyDatabase[0].maxHp;
+
+        /* --- TUTORIAL STATE --- */
+        const tutorialDialogue = [
+            "Yo. Welcome to SHIZE OS.",
+            "I'm bunii. I'll show you around this retro rig.",
+            "It's pretty simple. See those icons on the desktop?",
+            "Click them to open up your stats and gear.",
+            "Grab your social links in the INVENTORY...",
+            "...or fight some slimes in BATTLE if you're bored.",
+            "Oh hey, theres also that jukebox over there...",
+            "I haven't seen this before, I guess I'll try this out.. let me know if its good!",
+            "That's it. Good luck out there, player."
+        ];
+        let currentStep = 0;
+        let isTyping = false;
+        let typewriterTimeout = null;
+
+        /* --- PIXEL ART GENERATOR --- */
+        // Expanded color palette for 16x16 Six sprite
+        const colors = {
+            '0': 'transparent',
+            '1': '#000000', // Outline
+            '2': '#ffccaa', // Skin
+            '3': '#cc0000', // Red Hair (Six)
+            '4': '#444444', // Dark Grey Pants
+            '5': '#cccccc', // Light Grey Shirt
+            '6': '#ffffff', // White
+            '7': '#0000ff', // Blue (Hero shirt)
+            '8': '#d9a066', // Wood
+            '9': '#ffd700', // Gold
+            'A': '#8b4513', // Dark Leather
+            'B': '#bbbbbb', // Silver
+            'C': '#2596be'  // Custom Blue for Portal
+        };
+
+        const sprites = {
+            hero: [
+                "00111100",
+                "01222210",
+                "12122121",
+                "12222221",
+                "01222210",
+                "01711710",
+                "01711710",
+                "00100100"
+            ],
+            chest: [
+                "00000000",
+                "01111110",
+                "18888881",
+                "18199181",
+                "18888881",
+                "11111111",
+                "00000000",
+                "00000000"
+            ],
+            sword: [
+                "0000001B",
+                "00000161",
+                "00001610",
+                "00016100",
+                "01111000",
+                "01A10000",
+                "1A100000",
+                "B1000000"
+            ],
+            // Custom 16x16 Sprite based on the reference image "bunii"
+            bunii: [
+                "0000333333300000",
+                "0003333333330000",
+                "0033133333133000",
+                "0033222222233000",
+                "0002122222120000",
+                "0002222222220000",
+                "0000222222200000",
+                "0001555555510000",
+                "0012155655121000", // 6 is the white design on the shirt
+                "0012155555121000",
+                "0000144444100000",
+                "0000144444100000",
+                "0000144144100000",
+                "0001444144410000",
+                "0001444144410000",
+                "0001111111110000"
+            ],
+            cassette: [
+                "00000000",
+                "01111110",
+                "15555551",
+                "11611611",
+                "15555551",
+                "01111110",
+                "00000000",
+                "00000000"
+            ],
+            shop: [
+                "00111100",
+                "01999910",
+                "19999991",
+                "16666661",
+                "16166161",
+                "16166161",
+                "16666661",
+                "11111111"
+            ],
+            portal: [
+                "000CC000",
+                "00C11C00",
+                "0C1661C0",
+                "C165561C",
+                "C165561C",
+                "0C1661C0",
+                "00C11C00",
+                "000CC000"
+            ]
+        };
+
+        // Render dynamic sizes (handles 8x8 or 16x16 grids)
+        function renderSprite(canvasId, spriteData) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const size = 1; // 1x1 pixels on the internal canvas, CSS scales it up
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            for (let y = 0; y < spriteData.length; y++) {
+                for (let x = 0; x < spriteData[y].length; x++) {
+                    const colorCode = spriteData[y][x];
+                    if (colorCode !== '0' && colors[colorCode]) {
+                        ctx.fillStyle = colors[colorCode];
+                        ctx.fillRect(x * size, y * size, size, size);
+                    }
+                }
+            }
+        }
+
+        /* --- INITIALIZATION --- */
+        window.addEventListener('load', () => {
+            // Render Desktop Icons
+            renderSprite('canvas-hero', sprites.hero);
+            renderSprite('canvas-chest', sprites.chest);
+            renderSprite('canvas-sword', sprites.sword);
+            
+            // Render Mini Window Icons
+            renderSprite('canvas-hero-mini', sprites.hero);
+            renderSprite('canvas-chest-mini', sprites.chest);
+            renderSprite('canvas-sword-mini', sprites.sword);
+            renderSprite('canvas-hero-portrait', sprites.hero);
+
+            // Render Tutorial Character "bunii"
+            renderSprite('canvas-bunii', sprites.bunii);
+
+            // Render Music & Shop Icons
+            renderSprite('canvas-music', sprites.cassette);
+            renderSprite('canvas-music-mini', sprites.cassette);
+            renderSprite('canvas-shop', sprites.shop);
+            renderSprite('canvas-shop-mini', sprites.shop);
+
+            // Render Traverse Portal Icon
+            renderSprite('canvas-traverse', sprites.portal);
+
+            // Fetch Initial Discord Status
+            fetchLanyard();
+            setInterval(fetchLanyard, 30000);
+
+            // Setup Window Dragging
+            setupWindow('window-stats');
+            setupWindow('window-inventory');
+            setupWindow('window-game');
+            setupWindow('window-music');
+            setupWindow('window-shop');
+            initJukebox();
+
+            // Start Clock
+            updateClock();
+            clockInterval = setInterval(updateClock, 1000);
+            
+            // Icon Selection Logic
+            document.querySelectorAll('.desktop-icon').forEach(icon => {
+                icon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.desktop-icon').forEach(i => i.classList.remove('selected'));
+                    icon.classList.add('selected');
+                });
+            });
+            document.body.addEventListener('click', () => {
+                document.querySelectorAll('.desktop-icon').forEach(i => i.classList.remove('selected'));
+            });
+        });
+
+        /* --- BOOT & TUTORIAL SEQUENCE --- */
+        async function bootSystem() {
+            document.getElementById('insert-coin').style.display = 'none';
+            const loadBar = document.getElementById('loading-bar');
+            const loadFill = document.getElementById('loading-fill');
+            loadBar.classList.remove('hidden');
+
+            initAudio(); // Required to bypass autoplay policies
+            
+            loadFill.style.width = '30%';
+            
+            // Wait for cloud save data check to finish
+            const hasSave = await saveCheckPromise;
+
+            loadFill.style.width = '70%';
+            
+            setTimeout(() => { 
+                loadFill.style.width = '100%'; 
+                setTimeout(() => {
+                    if (hasSave) {
+                        document.getElementById('loading-bar').style.display = 'none';
+                        const prompt = document.getElementById('save-prompt');
+                        prompt.classList.remove('hidden');
+                        prompt.classList.add('flex');
+                    } else {
+                        const bootScreen = document.getElementById('boot-screen');
+                        bootScreen.style.opacity = '0';
+                        setTimeout(() => { 
+                            bootScreen.style.display = 'none'; 
+                            loadEnemy(0); // Load default start state
+                            startTutorial(); 
+                        }, 500);
+                    }
+                }, 400);
+            }, 400);
+        }
+
+        // Run if "CONTINUE" is clicked
+        function continueGame() {
+            const data = window.savedGameData;
+            exp = data.exp || 0;
+            maxExp = data.maxExp || 53200;
+            lvl = data.lvl || 266;
+            gold = data.gold || 0;
+            clickDamage = data.clickDamage || 100;
+            
+            // Re-render visual HUD
+            document.getElementById('hud-lvl').textContent = lvl;
+            document.getElementById('stat-lvl').textContent = lvl;
+            document.getElementById('hud-gold').textContent = gold;
+            document.getElementById('stat-dmg').textContent = clickDamage;
+            
+            const expPercent = Math.min((exp / maxExp) * 100, 100);
+            document.getElementById('hud-exp-fill').style.width = `${expPercent}%`;
+            
+            // Setup battle
+            if (data.currentEnemyIndex !== undefined) {
+                loadEnemy(data.currentEnemyIndex);
+                if (data.currentHp) {
+                    currentHp = data.currentHp;
+                    updateEnemyHp();
+                }
+            } else {
+                loadEnemy(0);
+            }
+
+            const bootScreen = document.getElementById('boot-screen');
+            bootScreen.style.opacity = '0';
+            setTimeout(() => { bootScreen.style.display = 'none'; }, 500);
+        }
+
+        // Run if "NEW GAME" is clicked
+        function newGame() {
+            // Reset to defaults
+            exp = 0;
+            maxExp = 53200;
+            lvl = 266;
+            gold = 0;
+            clickDamage = 100;
+            
+            document.getElementById('hud-lvl').textContent = lvl;
+            document.getElementById('stat-lvl').textContent = lvl;
+            document.getElementById('hud-gold').textContent = gold;
+            document.getElementById('stat-dmg').textContent = clickDamage;
+            document.getElementById('hud-exp-fill').style.width = `0%`;
+            
+            const bootScreen = document.getElementById('boot-screen');
+            bootScreen.style.opacity = '0';
+            setTimeout(() => { 
+                bootScreen.style.display = 'none'; 
+                loadEnemy(0);
+                startTutorial(); 
+            }, 500);
+        }
+
+        function startTutorial() {
+            const overlay = document.getElementById('tutorial-overlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            
+            // Add opening animation to the tutorial window too
+            const box = document.getElementById('tutorial-box');
+            void box.offsetWidth;
+            box.classList.add('window-open-anim');
+            setTimeout(() => { box.classList.remove('window-open-anim'); }, 300);
+
+            currentStep = 0;
+            typeTutorialText();
+        }
+
+        function typeTutorialText() {
+            const textElement = document.getElementById('tutorial-text');
+            const fullText = tutorialDialogue[currentStep];
+            textElement.textContent = "";
+            isTyping = true;
+            let charIndex = 0;
+
+            // Automatically open Jukebox and play the first song on Step 7
+            if (currentStep === 7) {
+                openWindow('window-music');
+                if (playlist.length > 0) {
+                    loadAndPlayTrack(0); // Plays the first song in your playlist array
+                }
+            }
+
+            function typeNextChar() {
+                if (charIndex < fullText.length) {
+                    const char = fullText.charAt(charIndex);
+                    textElement.textContent += char;
+                    
+                    // Only play sound if it's not a space
+                    if (char !== ' ') {
+                        playTypingSound();
+                    }
+
+                    charIndex++;
+                    typewriterTimeout = setTimeout(typeNextChar, 40); // Typing speed
+                } else {
+                    isTyping = false;
+                }
+            }
+            typeNextChar();
+        }
+
+        function advanceTutorial() {
+            if (isTyping) {
+                // Instantly finish typing if user clicks during animation
+                clearTimeout(typewriterTimeout);
+                document.getElementById('tutorial-text').textContent = tutorialDialogue[currentStep];
+                isTyping = false;
+            } else {
+                // Move to next step or close tutorial
+                currentStep++;
+                if (currentStep < tutorialDialogue.length) {
+                    typeTutorialText();
+                } else {
+                    // End tutorial
+                    const overlay = document.getElementById('tutorial-overlay');
+                    overlay.classList.add('hidden');
+                    overlay.classList.remove('flex');
+                }
+            }
+        }
+
+        /* --- TRAVERSE UNIVERSE ANIMATION --- */
+        let traverseAnimFrame;
+        function startTraverse() {
+            initAudio(); // Required just in case it wasn't triggered previously
+            
+            // Fade out background music if playing
+            const jukeboxAudio = document.getElementById('audio-player');
+            if (jukeboxAudio && !jukeboxAudio.paused) {
+                let vol = jukeboxAudio.volume;
+                const fadeOutInterval = setInterval(() => {
+                    if (vol > 0.05) {
+                        vol -= 0.05;
+                        jukeboxAudio.volume = vol;
+                        document.getElementById('volume-fill').style.width = `${vol * 100}%`;
+                        document.getElementById('volume-text').innerText = `${Math.round(vol * 100)}%`;
+                    } else {
+                        jukeboxAudio.pause();
+                        clearInterval(fadeOutInterval);
+                    }
+                }, 100);
+            }
+            
+            const overlay = document.getElementById('traverse-overlay');
+            const canvas = document.getElementById('traverse-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            overlay.style.display = 'block';
+            
+            // Trigger reflow
+            void overlay.offsetWidth;
+            
+            // 1. Enter the Void
+            overlay.classList.add('show-void');
+            playTraverseSound();
+            
+            // Setup Hyper-speed Starfield
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const stars = Array.from({length: 250}, () => ({
+                x: Math.random() * canvas.width - canvas.width/2,
+                y: Math.random() * canvas.height - canvas.height/2,
+                z: Math.random() * 1000
+            }));
+            
+            let speed = 2;
+            
+            function drawStars() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#ffffff';
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                
+                speed += 0.08; // Accelerate over time
+                
+                stars.forEach(star => {
+                    star.z -= speed;
+                    if (star.z <= 0) {
+                        star.x = Math.random() * canvas.width - cx;
+                        star.y = Math.random() * canvas.height - cy;
+                        star.z = 1000;
+                    }
+                    
+                    const px = cx + (star.x / star.z) * 1000;
+                    const py = cy + (star.y / star.z) * 1000;
+                    const size = Math.max(1, (1000 - star.z) / 150);
+                    
+                    ctx.fillRect(px, py, size, size);
+                });
+                
+                traverseAnimFrame = requestAnimationFrame(drawStars);
+            }
+            drawStars();
+            
+            // 2. Fade to White
+            setTimeout(() => {
+                overlay.classList.remove('show-void');
+                overlay.classList.add('show-white');
+            }, 3000);
+            
+            // 3. Hold White & Redirect
+            setTimeout(() => {
+                cancelAnimationFrame(traverseAnimFrame);
+                window.location.href = "https://bunii.net";
+            }, 5000);
+        }
+
+        /* --- HUD CLOCK --- */
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('hud-clock').textContent = `${hours}:${minutes}`;
+        }
+
+        /* --- WINDOW MANAGEMENT --- */
+        function openWindow(winId) {
+            const win = document.getElementById(winId);
+            if (!win) return;
+            win.style.display = 'flex';
+            
+            // Trigger reflow to restart CSS animation
+            void win.offsetWidth;
+            win.classList.add('window-open-anim');
+            setTimeout(() => { win.classList.remove('window-open-anim'); }, 300);
+            
+            bringToFront(win);
+        }
+
+        function closeWindow(winId) {
+            const win = document.getElementById(winId);
+            if (win) win.style.display = 'none';
+        }
+
+        function bringToFront(win) {
+            zIndexCounter++;
+            win.style.zIndex = zIndexCounter;
+        }
+
+        function setupWindow(winId) {
+            const win = document.getElementById(winId);
+            if (!win) return;
+            const header = win.querySelector('.window-header');
+            
+            win.addEventListener('mousedown', () => bringToFront(win));
+
+            let isDragging = false;
+            let offsetX, offsetY;
+
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.btn-close')) return;
+                
+                isDragging = true;
+                const rect = win.getBoundingClientRect();
+                
+                if (window.getComputedStyle(win).transform !== 'none') {
+                    win.style.transform = 'none';
+                    win.style.left = rect.left + 'px';
+                    win.style.top = rect.top + 'px';
+                }
+
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', stopDrag);
+            });
+
+            const drag = (e) => {
+                if (isDragging) {
+                    win.style.left = (e.clientX - offsetX) + 'px';
+                    win.style.top = (e.clientY - offsetY) + 'px';
+                }
+            };
+
+            const stopDrag = () => {
+                isDragging = false;
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('mouseup', stopDrag);
+            };
+        }
+
+        /* --- MINI GAME LOGIC --- */
+        function loadEnemy(index) {
+            currentEnemyIndex = index;
+            const enemy = enemyDatabase[index];
+            currentHp = enemy.maxHp;
+            
+            document.getElementById('enemy-name').innerText = enemy.name;
+            document.getElementById('enemy-desc').innerText = enemy.desc;
+            
+            const sprite = document.getElementById('enemy-sprite');
+            sprite.style.backgroundColor = enemy.color;
+            sprite.style.width = enemy.size;
+            sprite.style.height = enemy.size;
+            sprite.style.clipPath = enemy.clip;
+            
+            updateEnemyHp();
+        }
+
+        function nextEnemy() {
+            let nextIndex = (currentEnemyIndex + 1) % enemyDatabase.length;
+            loadEnemy(nextIndex);
+        }
+
+        function prevEnemy() {
+            let prevIndex = (currentEnemyIndex - 1 + enemyDatabase.length) % enemyDatabase.length;
+            loadEnemy(prevIndex);
+        }
+
+        function hitEnemy() {
+            const enemy = enemyDatabase[currentEnemyIndex];
+            currentHp -= clickDamage;
+            
+            if (currentHp <= 0) {
+                currentHp = enemy.maxHp;
+                gainExp(enemy.exp);
+                gold += enemy.gold;
+                document.getElementById('hud-gold').textContent = gold;
+                flashWindow('bg-green-500');
+                saveGame();
+            } else {
+                gainExp(Math.floor(enemy.exp / 10) + 1); // small exp per hit
+                flashWindow('bg-white');
+            }
+            
+            updateEnemyHp();
+            
+            const dmgText = document.getElementById('damage-text');
+            dmgText.innerText = `-${clickDamage} HP`;
+            dmgText.style.opacity = '1';
+            dmgText.style.transform = `translateY(-${Math.random() * 10 + 10}px)`;
+            setTimeout(() => {
+                dmgText.style.opacity = '0';
+                dmgText.style.transform = 'translateY(0)';
+            }, 300);
+        }
+
+        function updateEnemyHp() {
+            const enemy = enemyDatabase[currentEnemyIndex];
+            const percent = Math.max((currentHp / enemy.maxHp) * 100, 0);
+            document.getElementById('enemy-hp-fill').style.width = `${percent}%`;
+        }
+
+        /* --- SHOP LOGIC --- */
+        function buyWeapon(name, cost, damageBoost) {
+            const msg = document.getElementById('shop-message');
+            if (gold >= cost) {
+                gold -= cost;
+                clickDamage += damageBoost;
+                document.getElementById('hud-gold').textContent = gold;
+                document.getElementById('stat-dmg').textContent = clickDamage;
+                msg.innerText = `Purchased ${name}! DMG +${damageBoost}`;
+                msg.classList.replace('text-gray-400', 'text-green-400');
+                msg.classList.replace('text-red-400', 'text-green-400');
+                saveGame();
+            } else {
+                msg.innerText = `Not enough gold! Need ${cost}G.`;
+                msg.classList.replace('text-gray-400', 'text-red-400');
+                msg.classList.replace('text-green-400', 'text-red-400');
+            }
+            setTimeout(() => {
+                msg.innerText = "Welcome to the shop!";
+                msg.classList.replace('text-green-400', 'text-gray-400');
+                msg.classList.replace('text-red-400', 'text-gray-400');
+            }, 2000);
+        }
+
+        function gainExp(amount) {
+            exp += amount;
+            
+            if (exp >= maxExp) {
+                exp -= maxExp; // Carry over excess EXP
+                lvl++;
+                maxExp = lvl * 200; // Increase EXP required for next level
+                document.getElementById('hud-lvl').textContent = lvl;
+                document.getElementById('stat-lvl').textContent = lvl; // Update in Hero Stats window too
+                
+                // Heal Player HP & MP
+                const hpFill = document.querySelector('.hp-fill');
+                const mpFill = document.querySelector('.mp-fill');
+                hpFill.style.width = '0%';
+                if(mpFill) mpFill.style.width = '0%';
+                setTimeout(() => {
+                    hpFill.style.width = '100%';
+                    if(mpFill) mpFill.style.width = '100%';
+                }, 200);
+            }
+
+            // Update EXP bar width
+            const expPercent = Math.min((exp / maxExp) * 100, 100);
+            document.getElementById('hud-exp-fill').style.width = `${expPercent}%`;
+        }
+
+        function flashWindow(colorClass) {
+            const container = document.getElementById('battle-arena');
+            if (!container) return;
+            // Make sure we clean up any previous flash classes just in case
+            container.classList.remove('bg-white', 'bg-green-500', 'bg-black');
+            container.classList.add(colorClass);
+            setTimeout(() => {
+                container.classList.remove(colorClass);
+                container.classList.add('bg-black');
+            }, 50);
+        }
+
+        /* --- JUKEBOX LOGIC --- */
+        const audioPlayer = document.getElementById('audio-player');
+        const progressFill = document.getElementById('progress-fill');
+        const progressContainer = document.getElementById('progress-container');
+        const btnPlayPause = document.getElementById('btn-play-pause');
+        const trackTitle = document.getElementById('track-title');
+        const timeCurrent = document.getElementById('time-current');
+        const timeTotal = document.getElementById('time-total');
+        const playlistMenu = document.getElementById('playlist-menu');
+        const playlistList = document.getElementById('playlist-list');
+        const playlistArrow = document.getElementById('playlist-arrow');
+
+        // Initialize Volume UI
+        audioPlayer.volume = 1.0;
+
+        // EDIT THIS ARRAY WITH YOUR OWN SONGS
+        // NOTE: The FIRST song in this list (index 0) will automatically play during bunii's tutorial!
+        const playlist = [
+            { title: "bunii - GOOD RIDDANCE", src: "https://files.themoskau.xyz/f/91LTQ/bunii%20-%20GOOD%20RIDDANCE.mp3" },
+            { title: "bunii - this is what you caused", src: "https://files.themoskau.xyz/f/0dVsg/bunii%20-%20this%20is%20what%20you%20caused.mp3" },
+            { title: "bunii - NEED IT", src: "https://files.themoskau.xyz/f/oE0hw/bunii%20-%20NEED%20IT.mp3" },
+            { title: "bunii - REGRET", src: "https://files.themoskau.xyz/f/Y9aI1/bunii%20-%20REGRET.mp3" },
+            { title: "ayowitty - the light left my iris (feat. bunii)", src: "https://files.themoskau.xyz/f/eBzUe/ayowitty%20-%20the%20light%20left%20my%20iris%20%28feat.%20bunii%29.mp3" },
+            { title: "bunii - SAINT", src: "https://files.themoskau.xyz/f/PYKIW/bunii%20-%20SAINT.mp3" },
+            { title: "bunii - MINE", src: "https://files.themoskau.xyz/f/knZc5/bunii%20-%20MINE.mp3" }
+        ];
+        
+        let currentTrackIndex = 0;
+        let isPlaying = false;
+
+        function initJukebox() {
+            playlistList.innerHTML = '';
+            playlist.forEach((track, index) => {
+                const li = document.createElement('li');
+                li.className = "p-2 hover:bg-white hover:text-[#0000a3] cursor-pointer border-b border-gray-800 last:border-0";
+                li.innerText = `${index + 1}. ${track.title}`;
+                li.onclick = () => loadAndPlayTrack(index);
+                playlistList.appendChild(li);
+            });
+            if (playlist.length > 0) {
+                loadTrack(0);
+            }
+        }
+
+        function togglePlaylist() {
+            playlistMenu.classList.toggle('hidden');
+            playlistArrow.innerText = playlistMenu.classList.contains('hidden') ? '▼' : '▲';
+        }
+
+        function loadTrack(index) {
+            currentTrackIndex = index;
+            audioPlayer.src = playlist[index].src;
+            trackTitle.innerText = playlist[index].title;
+            timeCurrent.innerText = "0:00";
+            timeTotal.innerText = "0:00";
+            progressFill.style.width = "0%";
+            audioPlayer.load();
+        }
+
+        function loadAndPlayTrack(index) {
+            loadTrack(index);
+            playAudio();
+            playlistMenu.classList.add('hidden');
+            playlistArrow.innerText = '▼';
+        }
+
+        function togglePlay() {
+            if (playlist.length === 0) return;
+            if (audioPlayer.paused) {
+                playAudio();
+            } else {
+                pauseAudio();
+            }
+        }
+
+        function playAudio() {
+            // Catching the play promise handles the AbortError that occurs
+            // when rapidly clicking Next/Prev or selecting tracks before
+            // the previous track finishes buffering/loading.
+            const playPromise = audioPlayer.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    isPlaying = true;
+                    btnPlayPause.innerText = 'PAUSE';
+                }).catch(error => {
+                    console.log("Audio playback interrupted by user action:", error);
+                });
+            } else {
+                isPlaying = true;
+                btnPlayPause.innerText = 'PAUSE';
+            }
+        }
+
+        function pauseAudio() {
+            audioPlayer.pause();
+            isPlaying = false;
+            btnPlayPause.innerText = 'PLAY';
+        }
+
+        function nextTrack() {
+            if (playlist.length === 0) return;
+            currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+            loadAndPlayTrack(currentTrackIndex);
+        }
+
+        function prevTrack() {
+            if (playlist.length === 0) return;
+            currentTrackIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+            loadAndPlayTrack(currentTrackIndex);
+        }
+
+        function seekAudio(e) {
+            if (!audioPlayer.duration) return;
+            const rect = progressContainer.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            audioPlayer.currentTime = pos * audioPlayer.duration;
+        }
+
+        function setVolume(e) {
+            const container = document.getElementById('volume-container');
+            const rect = container.getBoundingClientRect();
+            let pos = (e.clientX - rect.left) / rect.width;
+            pos = Math.max(0, Math.min(1, pos));
+            audioPlayer.volume = pos;
+            document.getElementById('volume-fill').style.width = `${pos * 100}%`;
+            document.getElementById('volume-text').innerText = `${Math.round(pos * 100)}%`;
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "0:00";
+            const min = Math.floor(seconds / 60);
+            const sec = Math.floor(seconds % 60);
+            return `${min}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            if (!audioPlayer.duration) return;
+            const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            progressFill.style.width = `${percent}%`;
+            timeCurrent.innerText = formatTime(audioPlayer.currentTime);
+        });
+
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            timeTotal.innerText = formatTime(audioPlayer.duration);
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            nextTrack();
+        });
+
+        /* --- LANYARD API (DISCORD STATUS) --- */
+        async function fetchLanyard() {
+            try {
+                const response = await fetch('https://api.lanyard.rest/v1/users/886174926237749278');
+                const { data } = await response.json();
+                
+                const statusEl = document.getElementById('discord-status');
+                if (!statusEl) return;
+
+                const statusMap = {
+                    'online': { text: 'ONLINE', color: 'text-green-400 group-hover:text-green-600' },
+                    'idle': { text: 'IDLE', color: 'text-yellow-400 group-hover:text-yellow-600' },
+                    'dnd': { text: 'DND', color: 'text-red-500 group-hover:text-red-600' },
+                    'offline': { text: 'OFFLINE', color: 'text-gray-500 group-hover:text-gray-600' }
+                };
+                
+                const status = statusMap[data.discord_status] || statusMap['offline'];
+                
+                statusEl.innerHTML = `@shizefx: <span class="${status.color}">${status.text}</span>`;
+            } catch (error) {
+                console.error('Lanyard error:', error);
+                const statusEl = document.getElementById('discord-status');
+                if (statusEl) statusEl.innerHTML = `@shizefx: <span class="text-red-500">ERROR</span>`;
+            }
+        }
+    </script>
+</body>
+</html>
